@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Neural Network Churn Visualizer</title>
+<style>
+:root{
+  --bg:#f5f7fb; --panel:#fff; --ink:#172033; --muted:#687386;
+  --line:#e5e9f0; --accent:#315efb; --accent2:#7c3aed;
+  --green:#159570; --red:#e05b62; --orange:#e08a2e;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+button{font:inherit}
+header{padding:28px 34px 20px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.header-inner{max-width:1400px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--accent);font-weight:800}
+h1{font-size:27px;margin:4px 0 4px;letter-spacing:-.03em}
+.subtitle{color:var(--muted);font-size:14px}
+.actions{display:flex;gap:10px}
+button{border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:700}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button:hover{filter:brightness(.98);transform:translateY(-1px)}
+main{max-width:1400px;margin:0 auto;padding:26px 24px 60px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px;box-shadow:0 2px 12px rgba(20,30,55,.035)}
+.metric-label{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.metric{font-size:27px;font-weight:800;margin-top:7px}
+.metric small{font-size:13px;color:var(--muted);font-weight:600}
+.layout{display:grid;grid-template-columns:1.35fr .65fr;gap:18px}
+.section-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.section-title h2{font-size:16px;margin:0}
+.section-title span{font-size:12px;color:var(--muted)}
+.pipeline{display:grid;grid-template-columns:1fr 1.1fr 1fr;gap:12px;align-items:center}
+.stage{border:1px solid var(--line);border-radius:14px;padding:14px;background:#fbfcfe}
+.stage h3{font-size:13px;margin:0 0 11px}
+.stage-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-top:1px solid #edf0f5;font-size:12px}
+.stage-row:first-of-type{border-top:0}
+.badge{font-size:10px;font-weight:800;padding:4px 7px;border-radius:999px;background:#eef2ff;color:#315efb}
+.arrow{color:#a5adbb;text-align:center;font-size:22px}
+.network-wrap{overflow:auto;padding:10px 0}
+svg{width:100%;min-width:700px;height:300px}
+.node{stroke:#fff;stroke-width:2}
+.edge{stroke:#ccd3df;stroke-width:1.5}
+.edge.active{stroke:var(--accent);stroke-width:2.5}
+.node-label{font-size:11px;fill:#4f5b70;font-weight:700}
+.loss-card{margin-top:18px}
+.chart{height:260px;position:relative}
+canvas{width:100%;height:100%}
+.controls{display:grid;gap:14px}
+.control label{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#4f5b70;margin-bottom:7px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.status{padding:11px 12px;background:#f1f5ff;border-radius:10px;color:#3850a0;font-size:12px;line-height:1.5}
+.prediction{margin-top:18px}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:left;padding:10px 9px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.class{font-weight:800}
+.class.churn{color:var(--red)} .class.stay{color:var(--green)}
+.form{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.field label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px}
+.field input,.field select{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.result{margin-top:12px;padding:14px;border-radius:12px;background:#f8fafc;border:1px solid var(--line)}
+.prob{font-size:30px;font-weight:850}
+.progress{height:8px;background:#e9edf4;border-radius:99px;overflow:hidden;margin:8px 0}
+.progress > div{height:100%;background:var(--accent);width:0;transition:.25s}
+pre{background:#111827;color:#dce5f7;padding:16px;border-radius:12px;overflow:auto;font-size:11px;line-height:1.55}
+footer{text-align:center;color:#8a94a6;font-size:12px;padding:10px}
+@media(max-width:1050px){.layout{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){header{padding:20px}.header-inner{align-items:flex-start;flex-direction:column}.grid{grid-template-columns:1fr 1fr}main{padding:18px 12px}.pipeline{grid-template-columns:1fr}.arrow{transform:rotate(90deg)}.form{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div>
+      <div class="eyebrow">From NumPy → Neural Network</div>
+      <h1>Customer Churn Neural Network Visualizer</h1>
+      <div class="subtitle">Interactive view of synthetic data, normalization, forward propagation, backpropagation and test predictions.</div>
+    </div>
+    <div class="actions">
+      <button id="resetBtn">Reset</button>
+      <button class="primary" id="trainBtn">Train Network</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="grid">
+    <div class="card"><div class="metric-label">Samples</div><div class="metric" id="samples">1,000</div><small>800 train · 200 test</small></div>
+    <div class="card"><div class="metric-label">Architecture</div><div class="metric" id="architecture">3 → 4 → 1</div><small>ReLU hidden · Sigmoid output</small></div>
+    <div class="card"><div class="metric-label">Epoch</div><div class="metric" id="epochMetric">0 / 2,000</div><small>Learning rate 0.05</small></div>
+    <div class="card"><div class="metric-label">Test accuracy</div><div class="metric" id="accuracy">—</div><small>Threshold = 0.50</small></div>
+  </section>
+
+  <div class="layout">
+    <div>
+      <section class="card">
+        <div class="section-title"><h2>1. Data → Model Pipeline</h2><span>Matches the Python program</span></div>
+        <div class="pipeline">
+          <div class="stage">
+            <h3>Customer Data</h3>
+            <div class="stage-row"><span>Tenure</span><span class="badge">1–71 mo</span></div>
+            <div class="stage-row"><span>MonthlyCharges</span><span class="badge">$20–120</span></div>
+            <div class="stage-row"><span>ContractType</span><span class="badge">0 / 1</span></div>
+            <div class="stage-row"><span>Target</span><span class="badge">Churn</span></div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <h3>Preprocessing</h3>
+            <div class="stage-row"><span>Mean</span><span class="badge">μ</span></div>
+            <div class="stage-row"><span>Std. deviation</span><span class="badge">σ</span></div>
+            <div class="stage-row"><span>Normalization</span><span class="badge">(x−μ)/σ</span></div>
+            <div class="stage-row"><span>Split</span><span class="badge">80 / 20</span></div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <h3>Neural Network</h3>
+            <div class="stage-row"><span>Input</span><span class="badge">3</span></div>
+            <div class="stage-row"><span>Hidden</span><span class="badge">4 ReLU</span></div>
+            <div class="stage-row"><span>Output</span><span class="badge">1 Sigmoid</span></div>
+            <div class="stage-row"><span>Loss</span><span class="badge">BCE</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="section-title"><h2>2. Neural Network</h2><span>Weights brighten as activations increase</span></div>
+        <div class="network-wrap"><svg id="network" viewBox="0 0 760 300"></svg></div>
+      </section>
+
+      <section class="card loss-card">
+        <div class="section-title"><h2>3. Training Loss</h2><span id="lossValue">Loss: —</span></div>
+        <div class="chart"><canvas id="lossCanvas"></canvas></div>
+      </section>
+
+      <section class="card prediction">
+        <div class="section-title"><h2>4. Test Set Sample Predictions</h2><span>First 5 test rows</span></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>#</th><th>Actual Churn</th><th>Predicted Probability</th><th>Predicted Class</th></tr></thead>
+          <tbody id="predictionRows"></tbody></table>
+        </div>
+      </section>
+    </div>
+
+    <aside>
+      <section class="card">
+        <div class="section-title"><h2>Training Controls</h2><span>Live simulation</span></div>
+        <div class="controls">
+          <div class="control"><label><span>Epoch</span><span id="epochSliderValue">0</span></label><input id="epochSlider" type="range" min="0" max="2000" value="0"></div>
+          <div class="control"><label><span>Learning rate</span><span>0.05</span></label><input type="range" min="0.01" max="0.10" step="0.01" value="0.05" disabled></div>
+          <div class="status" id="status">Ready. Click “Train Network” to run the forward pass, backpropagation and gradient descent visually.</div>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="section-title"><h2>Try a Customer</h2><span>Forward pass</span></div>
+        <div class="form">
+          <div class="field"><label>Tenure (months)</label><input id="tenure" type="number" min="1" max="71" value="8"></div>
+          <div class="field"><label>Monthly charges ($)</label><input id="charges" type="number" min="20" max="120" value="105"></div>
+          <div class="field"><label>Contract type</label><select id="contract"><option value="0">0 — Month-to-month</option><option value="1">1 — Long-term</option></select></div>
+        </div>
+        <div class="result">
+          <div class="metric-label">Predicted churn probability</div>
+          <div class="prob" id="customProb">—</div>
+          <div class="progress"><div id="customBar"></div></div>
+          <div id="customClass" style="font-size:12px;color:var(--muted)">Train the network first.</div>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="section-title"><h2>What happens each epoch?</h2></div>
+        <ol style="padding-left:20px;margin:0;color:#5d687b;font-size:12px;line-height:1.9">
+          <li>Compute <b>Z₁ = XW₁ + b₁</b></li>
+          <li>Apply <b>ReLU</b> to get hidden activations.</li>
+          <li>Compute <b>Z₂ = A₁W₂ + b₂</b>.</li>
+          <li>Apply <b>Sigmoid</b> to get probabilities.</li>
+          <li>Measure <b>binary cross-entropy</b>.</li>
+          <li>Backpropagate gradients.</li>
+          <li>Update weights with gradient descent.</li>
+        </ol>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="section-title"><h2>Core formulas</h2></div>
+<pre>ReLU(z) = max(0, z)
+
+σ(z) = 1 / (1 + e⁻ᶻ)
+
+Loss = −mean[y log(a)
+       + (1−y)log(1−a)]
+
+W ← W − η ∂L/∂W</pre>
+      </section>
+    </aside>
+  </div>
+  <footer>Educational visualization of the supplied NumPy/Pandas churn model.</footer>
+</main>
+
+<script>
+const state = {
+  n:1000, trainN:800, epochs:2000, lr:.05,
+  X:[], Y:[], Xtrain:[], Ytrain:[], Xtest:[], Ytest:[],
+  mean:[], std:[], W1:null,b1:null,W2:null,b2:null,
+  losses:[], currentEpoch:0, testProbs:[], predictions:[]
+};
+
+function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296}}
+let rand=mulberry32(42);
+function normal(){let u=0,v=0;while(!u)u=rand();while(!v)v=rand();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+function zeros(r,c){return Array.from({length:r},()=>Array(c).fill(0))}
+function sigmoid(z){z=Math.max(-500,Math.min(500,z));return 1/(1+Math.exp(-z))}
+function relu(z){return Math.max(0,z)}
+function dot(A,B){let r=zeros(A.length,B[0].length);for(let i=0;i<A.length;i++)for(let k=0;k<B.length;k++){let s=0;for(let j=0;j<B.length;j++)s+=A[i][j]*B[j][k];r[i][k]=s}return r}
+function transpose(A){return A[0].map((_,j)=>A.map(r=>r[j]))}
+function addBias(A,b){return A.map(r=>r.map((x,j)=>x+b[j]))}
+function meanCol(A){return A[0].map((_,j)=>A.reduce((s,r)=>s+r[j],0)/A.length)}
+function stdCol(A,m){return m.map((v,j)=>Math.sqrt(A.reduce((s,r)=>s+(r[j]-v)**2,0)/A.length)||1)}
+function randnMatrix(r,c,scale){return Array.from({length:r},()=>Array.from({length:c},()=>normal()*scale))}
+function clipMatrix(A, f){return A.map(r=>r.map(f))}
+
+function generateData(){
+  rand=mulberry32(42);
+  state.X=[]; state.Y=[];
+  for(let i=0;i<state.n;i++){
+    const tenure=1+Math.floor(rand()*71);
+    const charges=20+rand()*100;
+    const contract=rand()<.5?0:1;
+    const p=sigmoid(charges/50-tenure/10-contract*1.5);
+    state.X.push([tenure,charges,contract]);
+    state.Y.push(p>.5?1:0);
+  }
+  state.mean=meanCol(state.X); state.std=stdCol(state.X,state.mean);
+  const norm=state.X.map(r=>r.map((x,j)=>(x-state.mean[j])/state.std[j]));
+  state.Xtrain=norm.slice(0,800);state.Ytrain=state.Y.slice(0,800);
+  state.Xtest=norm.slice(800);state.Ytest=state.Y.slice(800);
+}
+function initWeights(){
+  rand=mulberry32(43);
+  state.W1=randnMatrix(3,4,Math.sqrt(2/3)); state.b1=[[0,0,0,0]];
+  state.W2=randnMatrix(4,1,Math.sqrt(1/4)); state.b2=[[0]];
+  state.losses=[];state.currentEpoch=0;
+}
+function forward(X){
+  const Z1=addBias(dot(X,state.W1),state.b1[0]);
+  const A1=clipMatrix(Z1,relu);
+  const Z2=addBias(dot(A1,state.W2),state.b2[0]);
+  const A2=Z2.map(r=>[sigmoid(r[0])]);
+  return {Z1,A1,Z2,A2};
+}
+function trainOne(){
+  const m=state.Xtrain.length, f=forward(state.Xtrain), eps=1e-15;
+  let loss=0;
+  for(let i=0;i<m;i++){const y=state.Ytrain[i],a=f.A2[i][0];loss+=-(y*Math.log(a+eps)+(1-y)*Math.log(1-a+eps))}
+  loss/=m;
+  const dZ2=f.A2.map((r,i)=>[r[0]-state.Ytrain[i]]);
+  const dW2=dot(transpose(f.A1),dZ2).map(r=>r.map(v=>v/m));
+  const db2=[dZ2.reduce((s,r)=>s+r[0],0)/m];
+  const dA1=dot(dZ2,transpose(state.W2));
+  const dZ1=dA1.map((r,i)=>r.map((v,j)=>f.Z1[i][j]>0?v:0));
+  const dW1=dot(transpose(state.Xtrain),dZ1).map(r=>r.map(v=>v/m));
+  const db1=dZ1[0].map((_,j)=>dZ1.reduce((s,r)=>s+r[j],0)/m);
+  for(let i=0;i<4;i++){state.W2[i][0]-=state.lr*dW2[i][0]}
+  state.b2[0][0]-=state.lr*db2[0];
+  for(let i=0;i<3;i++)for(let j=0;j<4;j++)state.W1[i][j]-=state.lr*dW1[i][j];
+  for(let j=0;j<4;j++)state.b1[0][j]-=state.lr*db1[j];
+  state.losses.push(loss);state.currentEpoch++;
+}
+function evaluate(){
+  const f=forward(state.Xtest);
+  state.testProbs=f.A2.map(r=>r[0]);
+  state.predictions=state.testProbs.map(p=>p>=.5?1:0);
+  const acc=state.predictions.reduce((s,p,i)=>s+(p===state.Ytest[i]?1:0),0)/state.Ytest.length*100;
+  document.getElementById('accuracy').textContent=acc.toFixed(2)+'%';
+  renderPredictions(); renderNetwork();
+}
+function renderPredictions(){
+  const tb=document.getElementById('predictionRows');
+  tb.innerHTML='';
+  for(let i=0;i<5;i++){
+    const p=state.testProbs[i]??0, c=state.predictions[i]??0;
+    tb.innerHTML+=`<tr><td>${i+1}</td><td>${state.Ytest[i]}</td><td>${p.toFixed(3)}</td><td class="class ${c?'churn':'stay'}">${c?'1 — Churn':'0 — Stay'}</td></tr>`;
+  }
+}
+function drawLoss(){
+  const c=document.getElementById('lossCanvas'), rect=c.getBoundingClientRect(), dpr=devicePixelRatio||1;
+  c.width=rect.width*dpr;c.height=rect.height*dpr;
+  const ctx=c.getContext('2d');ctx.scale(dpr,dpr);
+  const w=rect.width,h=rect.height;ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle='#e8ebf1';ctx.lineWidth=1;
+  for(let i=0;i<5;i++){const y=20+i*(h-45)/4;ctx.beginPath();ctx.moveTo(35,y);ctx.lineTo(w-10,y);ctx.stroke()}
+  if(!state.losses.length)return;
+  const max=Math.max(...state.losses), min=Math.min(...state.losses), span=max-min||1;
+  ctx.strokeStyle='#315efb';ctx.lineWidth=2.5;ctx.beginPath();
+  state.losses.forEach((v,i)=>{const x=35+i/(state.losses.length-1||1)*(w-50);const y=18+(max-v)/span*(h-45);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.stroke();
+  ctx.fillStyle='#687386';ctx.font='11px system-ui';ctx.fillText('Loss',8,14);ctx.fillText('Epoch',w-45,h-5);
+}
+function renderNetwork(){
+  const svg=document.getElementById('network');svg.innerHTML='';
+  const layers=[{x:100,n:3,names:['Tenure','Charges','Contract']},{x:380,n:4,names:['H1','H2','H3','H4']},{x:650,n:1,names:['Churn']}];
+  layers.forEach((l,li)=>{
+    for(let i=0;i<l.n;i++){
+      const y=l.n===1?150:60+i*70;
+      if(li<layers.length-1){
+        const next=layers[li+1];
+        for(let j=0;j<next.n;j++){
+          const ny=next.n===1?150:60+j*70;
+          let weight=li===0?state.W1[i][j]:state.W2[i][j];
+          const opacity=Math.min(.95,.18+Math.abs(weight)*.18);
+          const cls=Math.abs(weight)>.65?'edge active':'edge';
+          svg.innerHTML+=`<line class="${cls}" style="opacity:${opacity}" x1="${l.x+20}" y1="${y}" x2="${next.x-20}" y2="${ny}"/>`;
+        }
+      }
+    }
+  });
+  layers.forEach((l,li)=>{
+    for(let i=0;i<l.n;i++){
+      const y=l.n===1?150:60+i*70;
+      let val=0;
+      if(state.currentEpoch){const f=forward(state.Xtrain.slice(0,1)); if(li===0)val=state.Xtrain[0][i]; if(li===1)val=f.A1[0][i]; if(li===2)val=f.A2[0][0]}
+      const fill=li===2?(val>=.5?'#e05b62':'#159570'):'#315efb';
+      const r=li===1?18:21;
+      svg.innerHTML+=`<circle class="node" cx="${l.x}" cy="${y}" r="${r}" fill="${fill}"/><text class="node-label" x="${l.x}" y="${y+4}" text-anchor="middle" fill="#fff">${li===0?l.names[i]:li===1?l.names[i]: 'ŷ'}</text>`;
+      svg.innerHTML+=`<text class="node-label" x="${l.x}" y="${y+r+17}" text-anchor="middle">${li===0?l.names[i]:li===1?'ReLU':'Sigmoid'}</text>`;
+    }
+  });
+}
+function setStatus(t){document.getElementById('status').textContent=t}
+function updateCustom(){
+  if(!state.currentEpoch){return}
+  const raw=[+document.getElementById('tenure').value,+document.getElementById('charges').value,+document.getElementById('contract').value];
+  const x=[raw.map((v,j)=>(v-state.mean[j])/state.std[j])];
+  const p=forward(x).A2[0][0];
+  document.getElementById('customProb').textContent=(p*100).toFixed(1)+'%';
+  document.getElementById('customBar').style.width=(p*100)+'%';
+  document.getElementById('customClass').innerHTML=p>=.5?'<b style="color:var(--red)">Predicted class: Churn (1)</b>':'<b style="color:var(--green)">Predicted class: Stay (0)</b>';
+}
+function renderAll(){
+  document.getElementById('epochMetric').textContent=`${state.currentEpoch.toLocaleString()} / 2,000`;
+  document.getElementById('epochSlider').value=state.currentEpoch;
+  document.getElementById('epochSliderValue').textContent=state.currentEpoch;
+  document.getElementById('lossValue').textContent=state.losses.length?`Loss: ${state.losses[state.losses.length-1].toFixed(4)}`:'Loss: —';
+  drawLoss();renderNetwork();updateCustom();
+}
+async function trainTo(target){
+  if(target<state.currentEpoch){initWeights();target=+target}
+  while(state.currentEpoch<target){
+    trainOne();
+    if(state.currentEpoch%10===0 || state.currentEpoch===target){
+      renderAll();
+      await new Promise(r=>requestAnimationFrame(r));
+    }
+  }
+  evaluate();renderAll();
+  setStatus(`Training complete. ${state.currentEpoch.toLocaleString()} epochs finished. Test predictions are now available.`);
+}
+function reset(){
+  generateData();initWeights();
+  document.getElementById('accuracy').textContent='—';
+  document.getElementById('customProb').textContent='—';
+  document.getElementById('customBar').style.width='0';
+  document.getElementById('customClass').textContent='Train the network first.';
+  document.getElementById('predictionRows').innerHTML='<tr><td colspan="4" style="color:#8a94a6">No predictions yet.</td></tr>';
+  setStatus('Ready. Click “Train Network” to run the forward pass, backpropagation and gradient descent visually.');
+  renderAll();
+}
+document.getElementById('trainBtn').onclick=()=>trainTo(2000);
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('epochSlider').oninput=e=>trainTo(+e.target.value);
+['tenure','charges','contract'].forEach(id=>document.getElementById(id).addEventListener('input',updateCustom));
+window.addEventListener('resize',drawLoss);
+reset();
+</script>
+</body>
+</html>
