@@ -34,3 +34,7 @@ Make sure you have Python installed along with NumPy and Pandas:
 
 ```bash
 pip install numpy pandas
+
+
+git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
+cd your-repo-name
