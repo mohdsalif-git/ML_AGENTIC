@@ -1,0 +1,14 @@
+matrixMultiple
+Key Concept: Dimensions must align: (2, 3) x (3, 4) = (2, 4). 
+Inner numbers ($3$) match, and outer numbers ($2, 4$) define output shape.
+
+Script 1: Matrix Multiplication (np.dot)In neural networks, passing data through a layer is just multiplying inputs by weights ($X \cdot W$).Python
+Script 2: Activation Functions (ReLU & Sigmoid)
+Without activations, a neural network is just a linear equation. Activations add non-linearity and convert raw scores into probabilities.
+
+Key Concept: ReLU zeroes out negative numbers (used in hidden layers). Sigmoid squashes any number into range $[0, 1]$ (used for binary output probabilities).
+
+Script 3: Calculating Loss (Binary Cross-Entropy)
+Loss measures how wrong your model's predictions are compared to actual ground truth labels.
+
+
